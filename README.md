@@ -12,6 +12,6 @@ Create a simple python app updater that download all the files from the local se
 * json file contains the app version in a standard way.
 * verify if the app need to be updated.
 * * if yes, ask to do it;
-* * if press yes, update the files and return the version of the json files
-* * if press no, return True
+* * if press yes, update the files and return True
+* * if press no, return message with the version of the json files
 * * if there is no update return False
