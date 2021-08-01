@@ -5,7 +5,7 @@ from .KThread import KThread
 class AskToUpdate():
     def __init__(self, message: str, title: str = "Updater"):
         app = App()
-        dlg = MessageDialog(None, message, "Updater", YES_NO | ICON_QUESTION)
+        dlg = MessageDialog(None, message, title, YES_NO | ICON_QUESTION)
         result = dlg.ShowModal()
         if result == ID_YES:
             self.update = True

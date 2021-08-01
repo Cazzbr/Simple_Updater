@@ -91,7 +91,6 @@ class DoTheUpdate():
             self.Stage5_cleanUp(bkp_folder)
             self.AppSelf.restart_program()
         else:
-            print("reverting")
             self.revert_stage3(app_folder, bkp_folder)
 
     def Stage5_cleanUp(self, bkp_folder):
@@ -150,22 +149,34 @@ class SimpleUpdater(ABC):
         ''' Compare the upstream json file with the local file '''
 
         local_json_file = self.LocalJson()
-        remote_json = self.GetJsonFile()
-        if remote_json and local_json_file:
-            if local_json_file["Version"] == remote_json["Version"]:
-                return True
-            else:
-                return f"Current: {local_json_file['Version']} - New: {remote_json['Version']}"
+        self.remote_json = self.GetJsonFile()
+        if self.remote_json and local_json_file:
+            try:
+                if local_json_file["Version"] == self.remote_json["Version"]:
+                    return True
+                else:
+                    return (local_json_file['Version'], self.remote_json['Version'])
+            except:
+                return False
         else:
             return False
     
     def Update(self):
         update = self.DoWeNeedToUpdate()
         if update != False and update!= True:
-            update_Question = AskToUpdate("Should update?")
-            if update_Question.update:
-                update_obj = DoTheUpdate(self)
-                UpdateProgress("title", update_obj.DoUpdate, update_obj.CancelUpdate)
+            if update[0] < update[1]:
+                try:
+                    question_text = self.remote_json["question_text"]
+                except:
+                    question_text = "The application has an update! Do you want to update now?"
+                try:
+                    question_title = self.remote_json["question_title"]
+                except:
+                    question_title = "Simple Updater"
+                update_Question = AskToUpdate(question_text, question_title)
+                if update_Question.update:
+                    update_obj = DoTheUpdate(self)
+                    UpdateProgress(question_title, update_obj.DoUpdate, update_obj.CancelUpdate)
         return update
     
     def restart_program(self):

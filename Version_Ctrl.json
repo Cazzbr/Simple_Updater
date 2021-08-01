@@ -1,1 +1,7 @@
-{"Name":"SimpleUpdate", "Description":"My version of a simple app updater", "Version":0.11}
+{
+    "Name":"SimpleUpdate",
+    "Description":"My version of a simple app updater",
+    "Version":0.11,
+    "question_text": "Custom text for the question: should we update the app?",  
+    "question_title": "Custon title for the updater windows"
+}
