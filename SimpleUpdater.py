@@ -127,9 +127,10 @@ class DoTheUpdate():
 class SimpleUpdater(ABC):
     ''' Simple Updater main class, recieves a location to a json file and check the app version and compare with a local one. Optionally a relative path can be passed for the local json file. Egg: /includes/ '''
 
-    def __init__(self, file_location: str, json_relative_path: str):
+    def __init__(self, file_location: str, json_relative_path: str, app_image: str = None):
         self.file_location = file_location
         self.current_json_file_path = os.path.join(os.getcwd(), json_relative_path)
+        self.app_image = app_image
 
     def LocalJson(self):
         if os.path.isfile(self.current_json_file_path):
@@ -177,7 +178,7 @@ class SimpleUpdater(ABC):
                 update_Question = AskToUpdate(question_text, question_title)
                 if update_Question.update:
                     update_obj = DoTheUpdate(self)
-                    UpdateProgress(question_title, update_obj.DoUpdate, update_obj.CancelUpdate)
+                    UpdateProgress(question_title, update_obj.DoUpdate, update_obj.CancelUpdate, self.app_image)
         return update
     
     def restart_program(self):
@@ -190,8 +191,8 @@ class SimpleUpdater(ABC):
 
 class SimpleUpdaterLocal(SimpleUpdater):
 
-    def __init__(self, file_location: str, json_relative_path: str):
-        super().__init__(file_location, json_relative_path)
+    def __init__(self, file_location: str, json_relative_path: str, app_image: str = None):
+        super().__init__(file_location, json_relative_path, app_image)
 
     def GetJsonFile(self):
         ''' Gets the json object to check the upstream version, if the file is locally configured (internal netwok) '''
@@ -217,9 +218,9 @@ class SimpleUpdaterLocal(SimpleUpdater):
 
 class SimpleUpdaterUrl(SimpleUpdater):
     
-    def __init__(self, file_location: str, json_relative_path: str, json_file_location: str):
+    def __init__(self, file_location: str, json_relative_path: str, json_file_location: str, app_image: str = None):
         self.json_file_location = json_file_location
-        super().__init__(file_location, json_relative_path)
+        super().__init__(file_location, json_relative_path, app_image)
         
     
     def GetJsonFile(self):
