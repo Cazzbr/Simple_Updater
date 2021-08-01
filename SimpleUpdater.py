@@ -227,7 +227,6 @@ class SimpleUpdaterUrl(SimpleUpdater):
         
         file = request.urlopen(self.json_file_location).read()
         Version_Ctrl = json.loads(file)
-        print(Version_Ctrl)
         return Version_Ctrl
     
     def GetNewFiles(self, dest):
@@ -241,5 +240,4 @@ class SimpleUpdaterUrl(SimpleUpdater):
             return 'Error downloading file'
 
 if __name__ == "__main__":
-    test = SimpleUpdaterUrl("https://github.com/Cazzbr/Simple_Updater/archive/refs/heads/main.zip", "Simple_Updater/Version_Ctrl.json", "https://raw.githubusercontent.com/Cazzbr/Simple_Updater/main/Version_Ctrl.json")
-    test.GetNewFiles(os.getcwd())
+    pass
