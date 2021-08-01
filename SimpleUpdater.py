@@ -5,9 +5,13 @@ import tempfile
 import json
 from abc import ABC, abstractmethod
 from urllib import request
-from .Libs.UpdateInterface import AskToUpdate, UpdateProgress
 import zipfile
 from time import time, sleep, ctime
+import __main__ as main
+try:
+    from .Libs.UpdateInterface import AskToUpdate, UpdateProgress
+except Exception:
+    from Libs.UpdateInterface import AskToUpdate, UpdateProgress
 
 class CallBacks():
     def __init__(self, CallBackGauge, CallBackStatus, CallBackCancel) -> None:
@@ -36,53 +40,86 @@ class DoTheUpdate():
         self.temp_folder = "Simple_Updater " + ctime(time())
         self.AppSelf = AppSelf
     
+    def Stage1_download(self, temp_app_folder):
+        self.call_backs.DoCallBackForward("Downloading the new version, please wait...", 2)
+        get_file = self.GetNewFiles(temp_app_folder)
+        if get_file != True:
+            self.call_backs.DoCallBackForward(f"There was an error downloading the file {get_file} - Exiting in 5", 2)
+            sleep(5)
+            self.call_backs.DoCancel()
+        else:
+            self.call_backs.DoCallBackForward("The required files has been downloaded, Installing...", 50)
+
+    def Stage2_bkpFiles(self, app_folder, bkp_folder):
+        if os.path.isdir(bkp_folder):
+            shutil.rmtree(bkp_folder)               
+        os.mkdir(bkp_folder)
+        file_names = os.listdir(app_folder)
+        for f in file_names:
+            shutil.move(os.path.join(app_folder, f), os.path.join(bkp_folder,f))
+    
+    def revert_stage2(self, app_folder, bkp_folder):
+        self.call_backs.DoCallBackForward("Reverting changes, please wait...", 50)
+        shutil.move(bkp_folder, app_folder)
+        self.call_backs.DoCancel()
+
+    def Stage3_moveFiles(self, temp_app_folder, app_folder):
+        self.call_backs.DoCallBackForward("Copying files, Please wait...", 52)
+        new_file_name = os.listdir(temp_app_folder)
+        exec_file_name = os.path.split(main.__file__)[1]
+        with zipfile.ZipFile(os.path.join(temp_app_folder, new_file_name[0]), 'r') as zip:
+            to_remove = False
+            for file in zip.namelist():
+                if (os.path.split(file)[1])  == exec_file_name:
+                    to_remove = len(os.path.split(file)[0])
+            if to_remove:
+                for zip_info in zip.infolist():
+                    if zip_info.filename[-1] == '/':
+                        continue
+                    zip_info.filename = zip_info.filename[to_remove:]
+                    zip.extract(zip_info, app_folder)
+
+    def revert_stage3(self, app_folder, bkp_folder):
+        self.call_backs.DoCallBackForward("There was an error starting the APP! Reverting the changes, please wait...", 52)
+        shutil.rmtree(app_folder)
+        shutil.move(bkp_folder, app_folder)
+        self.call_backs.DoCancel()
+
+    def Stage4_restartAndCheckUpate(self, app_folder, bkp_folder):
+        updated = self.AppSelf.DoWeNeedToUpdate()
+        if os.path.isfile(main.__file__) and updated:
+            self.Stage5_cleanUp(bkp_folder)
+            self.AppSelf.restart_program()
+        else:
+            print("reverting")
+            self.revert_stage3(app_folder, bkp_folder)
+
+    def Stage5_cleanUp(self, bkp_folder):
+        shutil.rmtree(bkp_folder)
+
     def DoUpdate(self, CallBackGauge = None, CallBackStatus = None, CallBackCancel = None):
-        call_backs = CallBacks(CallBackGauge, CallBackStatus, CallBackCancel)
-        call_backs.DoCallBackForward("Creating a temporary folder...", 1)
+        self.call_backs = CallBacks(CallBackGauge, CallBackStatus, CallBackCancel)
+        self.call_backs.DoCallBackForward("Creating a temporary folder...", 1)
         temp_app_folder = os.path.join(tempfile.gettempdir(), self.temp_folder)
         if not os.path.isdir(temp_app_folder):os.mkdir(temp_app_folder)
         if not self.cancel:
-            call_backs.DoCallBackForward("Downloading the new version, please wait...", 2)
-            get_file = self.GetNewFiles(temp_app_folder)
-            if get_file != True:
-                call_backs.DoCallBackForward(f"There was an error downloading the file {get_file} - Exiting in 5", 2)
-                sleep(5)
-                call_backs.DoCancel()
-            else:
-                call_backs.DoCallBackForward("The required files has been downloaded, Installing...", 50)
+            self.Stage1_download(temp_app_folder)
             if not self.cancel:
                 app_folder = os.getcwd()
                 bkp_folder = os.path.join(os.path.dirname(app_folder), os.path.split(app_folder)[1]+ "_BKP")
-                if os.path.isdir(bkp_folder):
-                    shutil.rmtree(bkp_folder)               
-                os.mkdir(bkp_folder)
-                file_names = os.listdir(app_folder)
-                for f in file_names:
-                    shutil.move(os.path.join(app_folder, f), os.path.join(bkp_folder,f))
+                self.Stage2_bkpFiles(app_folder, bkp_folder)
                 if not self.cancel:
-                    call_backs.DoCallBackForward("Copying files, Please wait...", 52)
-                    new_file_name = os.listdir(temp_app_folder)
-                    with zipfile.ZipFile(os.path.join(temp_app_folder, new_file_name[0]), 'r') as zip_ref:
-                        zip_ref.extractall(app_folder)
+                    self.Stage3_moveFiles(temp_app_folder, app_folder)
                     if not self.cancel:
-                        call_backs.DoCallBackForward("Finished copying files! Removing backup folder", 90)
-                        shutil.rmtree(bkp_folder)
-                        call_backs.DoCallBackForward("Finished the clean up! Restarting in 2...", 100)
-                        sleep(2)
-                        self.AppSelf.restart_program()
+                        self.Stage4_restartAndCheckUpate(app_folder, bkp_folder)
                     else:
-                        call_backs.DoCallBackForward("Reverting changes, please wait...", 52)
-                        shutil.rmtree(app_folder)
-                        shutil.move(bkp_folder, app_folder)
-                        call_backs.DoCancel()
+                        self.revert_stage3(app_folder, bkp_folder)
                 else:
-                    call_backs.DoCallBackForward("Reverting changes, please wait...", 50)
-                    shutil.move(bkp_folder, app_folder)
-                    call_backs.DoCancel()
+                    self.revert_stage2(app_folder, bkp_folder)
             else:
-                call_backs.DoCancel()
+                self.call_backs.DoCancel()
         else:
-            call_backs.DoCancel()
+            self.call_backs.DoCancel()
 
     def CancelUpdate(self):
         self.cancel = True
@@ -95,9 +132,11 @@ class SimpleUpdater(ABC):
         self.current_json_file_path = os.path.join(os.getcwd(), json_relative_path)
 
     def LocalJson(self):
-        with open(self.current_json_file_path) as f:
-            Version_Ctrl = json.load(f)
-        return Version_Ctrl
+        if os.path.isfile(self.current_json_file_path):
+            with open(self.current_json_file_path) as f:
+                Version_Ctrl = json.load(f)
+            return Version_Ctrl
+        else: return False
     
     @abstractmethod
     def GetJsonFile(self):
@@ -109,19 +148,22 @@ class SimpleUpdater(ABC):
 
     def DoWeNeedToUpdate(self):
         ''' Compare the upstream json file with the local file '''
-        
+
         local_json_file = self.LocalJson()
         remote_json = self.GetJsonFile()
-        if local_json_file["Version"] == remote_json["Version"]:
-            return False
+        if remote_json and local_json_file:
+            if local_json_file["Version"] == remote_json["Version"]:
+                return True
+            else:
+                return f"Current: {local_json_file['Version']} - New: {remote_json['Version']}"
         else:
-            return f"Current: {local_json_file['Version']} - New: {remote_json['Version']}"
+            return False
     
     def Update(self):
         update = self.DoWeNeedToUpdate()
-        if update != False:
-            update = AskToUpdate("Should update?")
-            if update.update:
+        if update != False and update!= True:
+            update_Question = AskToUpdate("Should update?")
+            if update_Question.update:
                 update_obj = DoTheUpdate(self)
                 UpdateProgress("title", update_obj.DoUpdate, update_obj.CancelUpdate)
         return update
@@ -142,13 +184,16 @@ class SimpleUpdaterLocal(SimpleUpdater):
     def GetJsonFile(self):
         ''' Gets the json object to check the upstream version, if the file is locally configured (internal netwok) '''
 
-        with zipfile.ZipFile(self.file_location, 'r') as zip:
-            files = zip.namelist()
-            for file in files:
-                if file.endswith(".json"):
-                    jsonfile = file
-            read_json = zip.read(jsonfile)
-            Version_Ctrl = json.loads(read_json.decode("utf-8"))        
+        Version_Ctrl = False
+        if os.path.isfile(self.file_location):
+            with zipfile.ZipFile(self.file_location, 'r') as zip:
+                files = zip.namelist()
+                for file in files:
+                    if file.endswith(".json"):
+                        Version_Ctrl = file
+                if Version_Ctrl:
+                    read_json = zip.read(Version_Ctrl)
+                    Version_Ctrl = json.loads(read_json.decode("utf-8"))        
         return Version_Ctrl
 
     def GetNewFiles(self, dest):
