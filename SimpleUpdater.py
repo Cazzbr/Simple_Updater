@@ -47,6 +47,7 @@ class DoTheUpdate():
             self.call_backs.DoCallBackForward(f"There was an error downloading the file {get_file} - Exiting in 5", 2)
             sleep(5)
             self.call_backs.DoCancel()
+            self.CancelUpdate()
         else:
             self.call_backs.DoCallBackForward("The required files has been downloaded, Installing...", 50)
 
@@ -216,20 +217,29 @@ class SimpleUpdaterLocal(SimpleUpdater):
 
 class SimpleUpdaterUrl(SimpleUpdater):
     
-    def __init__(self, file_location: str, json_relative_path: str):
+    def __init__(self, file_location: str, json_relative_path: str, json_file_location: str):
+        self.json_file_location = json_file_location
         super().__init__(file_location, json_relative_path)
         
     
     def GetJsonFile(self):
         ''' Gets the json object to check the upstream version, if the file is locally configured (internal netwok) '''
         
-        return request.urlopen(self.file_location).read()
-        #return url_content.read()
+        file = request.urlopen(self.json_file_location).read()
+        Version_Ctrl = json.loads(file)
+        print(Version_Ctrl)
+        return Version_Ctrl
     
-    def GetNewFiles(self):
-        pass
+    def GetNewFiles(self, dest):
+        abs_dest_file_name = os.path.join(dest, os.path.split(self.file_location)[1])      
+        try:
+            request.urlretrieve(self.file_location, abs_dest_file_name)
+            if not os.path.isfile(abs_dest_file_name):
+                return 'remote file does not exist'
+            return True
+        except IOError:
+            return 'Error downloading file'
 
 if __name__ == "__main__":
-    test = SimpleUpdaterLocal("/home/luciano/SimpleUpdate/Simple_Update.zip", "Version_Ctrl.json")
-    #test2 = SimpleUpdaterUrl("https://google.com")
-    test.Update()
+    test = SimpleUpdaterUrl("https://github.com/Cazzbr/Simple_Updater/archive/refs/heads/main.zip", "Simple_Updater/Version_Ctrl.json", "https://raw.githubusercontent.com/Cazzbr/Simple_Updater/main/Version_Ctrl.json")
+    test.GetNewFiles(os.getcwd())
