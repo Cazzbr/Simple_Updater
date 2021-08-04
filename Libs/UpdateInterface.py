@@ -1,10 +1,13 @@
 from os import path
 from wx import MessageDialog, App, Frame, Panel, Gauge, Button, StaticText, Image, BITMAP_TYPE_ANY, StaticBitmap, BoxSizer, ID_ANY, VERTICAL, HORIZONTAL, EXPAND, ALL, CENTER, LEFT, RIGHT, YES_NO, ICON_QUESTION, ID_YES, EVT_BUTTON, CallAfter
+from wx.core import BOTTOM
 from .KThread import KThread
 
 class AskToUpdate():
-    def __init__(self, message: str, title: str = "Updater"):
-        app = App()
+    def __init__(self, message: str, title: str = "Simple Updater", app: App = False):
+        self.app = app
+        if not self.app:
+            self.app = App()
         dlg = MessageDialog(None, message, title, YES_NO | ICON_QUESTION)
         result = dlg.ShowModal()
         if result == ID_YES:
@@ -32,7 +35,7 @@ class UpdateProgressPanel(Panel):
         
         sizer.Add(image, 1, CENTER)
         sizer.Add(self.Progress, 0, ALL | EXPAND, 10)
-        sizer.Add(btn_sizer, 0, EXPAND)
+        sizer.Add(btn_sizer, 0, EXPAND | BOTTOM, 10)
         self.SetSizer(sizer)
         
         self.Bind(EVT_BUTTON, self.cancel_clicked, btn)
@@ -59,14 +62,15 @@ class UpdateProgressPanel(Panel):
         
 
 class UpdateProgress(Frame):
-    def __init__(self, title, update_obj, cancel_obj = None, image: str = None):
-        app = App()
+    def __init__(self, title, update_obj, cancel_obj = None, image: str = None, app: App = False):
+        if not app:
+            app = App()
         self.update_obj = update_obj
         self.cancel_obj = cancel_obj
         Frame.__init__(self, None, title=title)
         sizer = BoxSizer(VERTICAL)
         self.Progress = UpdateProgressPanel(self, image)
-        sizer.Add(self.Progress, 1, ALL | EXPAND, 10)
+        sizer.Add(self.Progress, 1, EXPAND)
         self.SetSizer(sizer)
         self.Fit()
         self.Show()
@@ -76,4 +80,4 @@ class UpdateProgress(Frame):
         self.Close()
 
 if __name__ == "__main__":
-    UpdateProgress("Message")
+    UpdateProgress("Message", "_")

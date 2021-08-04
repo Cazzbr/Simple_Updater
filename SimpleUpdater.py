@@ -6,7 +6,7 @@ import json
 from abc import ABC, abstractmethod
 from urllib import request
 import zipfile
-from time import time, sleep, ctime
+from time import time, sleep
 import __main__ as main
 try:
     from .Libs.UpdateInterface import AskToUpdate, UpdateProgress
@@ -37,7 +37,7 @@ class DoTheUpdate():
     def __init__(self, AppSelf):
         self.cancel = False
         self.GetNewFiles = AppSelf.GetNewFiles
-        self.temp_folder = "Simple_Updater " + ctime(time())
+        self.temp_folder = "Simple_Updater_" + str(time())
         self.AppSelf = AppSelf
     
     def Stage1_download(self, temp_app_folder):
@@ -61,41 +61,65 @@ class DoTheUpdate():
     
     def revert_stage2(self, app_folder, bkp_folder):
         self.call_backs.DoCallBackForward("Reverting changes, please wait...", 50)
-        shutil.move(bkp_folder, app_folder)
+        file_names = os.listdir(bkp_folder)
+        for f in file_names:
+            shutil.move(os.path.join(bkp_folder, f), os.path.join(app_folder,f))
         self.call_backs.DoCancel()
 
     def Stage3_moveFiles(self, temp_app_folder, app_folder):
         self.call_backs.DoCallBackForward("Copying files, Please wait...", 52)
         new_file_name = os.listdir(temp_app_folder)
         exec_file_name = os.path.split(main.__file__)[1]
-        with zipfile.ZipFile(os.path.join(temp_app_folder, new_file_name[0]), 'r') as zip:
-            to_remove = False
-            for file in zip.namelist():
-                if (os.path.split(file)[1])  == exec_file_name:
-                    to_remove = len(os.path.split(file)[0])
-            if to_remove:
-                for zip_info in zip.infolist():
-                    if zip_info.filename[-1] == '/':
+        dot = exec_file_name.rindex(".")
+        try:
+            with zipfile.ZipFile(os.path.join(temp_app_folder, new_file_name[0]), 'r') as zip:
+                to_remove = False
+                for file in zip.namelist():
+                    if file[-1] == '/':
                         continue
-                    zip_info.filename = zip_info.filename[to_remove:]
-                    zip.extract(zip_info, app_folder)
+                    try:
+                        file_dot = file.rindex(".")
+                    except Exception:
+                        continue
+                    if (os.path.split(file[:file_dot])[1])  == exec_file_name[:dot]:
+                        to_remove = len(os.path.split(file)[0])
+                if to_remove:
+                    for zip_info in zip.infolist():
+                        if zip_info.filename[-1] == '/':
+                            continue
+                        zip_info.filename = zip_info.filename[to_remove:]
+                        zip.extract(zip_info, app_folder)
+        except Exception as error:
+            self.call_backs.DoCallBackForward("There was an error extrating the files.... Reverting the changes", 52)
+            sleep(3)
+            self.call_backs.DoCancel()
 
     def revert_stage3(self, app_folder, bkp_folder):
         self.call_backs.DoCallBackForward("There was an error starting the APP! Reverting the changes, please wait...", 52)
-        shutil.rmtree(app_folder)
-        shutil.move(bkp_folder, app_folder)
+        for root, dirs, files in os.walk(app_folder):
+            for file in files:
+                os.remove(os.path.join(root, file))
+        file_names = os.listdir(bkp_folder)
+        for f in file_names:
+            shutil.move(os.path.join(bkp_folder, f), os.path.join(app_folder,f))
         self.call_backs.DoCancel()
 
     def Stage4_restartAndCheckUpate(self, app_folder, bkp_folder):
         updated = self.AppSelf.DoWeNeedToUpdate()
-        if os.path.isfile(main.__file__) and updated:
-            self.Stage5_cleanUp(bkp_folder)
-            self.AppSelf.restart_program()
+        exec_file_copied = False
+        exe_main_file = os.path.split(main.__file__)[1]
+        exe_main_file_dot = exe_main_file.rindex(".")
+        for file in os.listdir(app_folder):
+            try:
+                file_dot = file.rindex(".")
+            except Exception:
+                continue
+            if file[:file_dot] == exe_main_file[:exe_main_file_dot]:
+                exec_file_copied = True
+        if exec_file_copied and updated:
+            self.AppSelf.restart_program(bkp_folder)
         else:
             self.revert_stage3(app_folder, bkp_folder)
-
-    def Stage5_cleanUp(self, bkp_folder):
-        shutil.rmtree(bkp_folder)
 
     def DoUpdate(self, CallBackGauge = None, CallBackStatus = None, CallBackCancel = None):
         self.call_backs = CallBacks(CallBackGauge, CallBackStatus, CallBackCancel)
@@ -106,7 +130,7 @@ class DoTheUpdate():
             self.Stage1_download(temp_app_folder)
             if not self.cancel:
                 app_folder = os.getcwd()
-                bkp_folder = os.path.join(os.path.dirname(app_folder), os.path.split(app_folder)[1]+ "_BKP")
+                bkp_folder = os.path.join(temp_app_folder, "_BKP")
                 self.Stage2_bkpFiles(app_folder, bkp_folder)
                 if not self.cancel:
                     self.Stage3_moveFiles(temp_app_folder, app_folder)
@@ -127,10 +151,11 @@ class DoTheUpdate():
 class SimpleUpdater(ABC):
     ''' Simple Updater main class, recieves a location to a json file and check the app version and compare with a local one. Optionally a relative path can be passed for the local json file. Egg: /includes/ '''
 
-    def __init__(self, file_location: str, json_relative_path: str, app_image: str = None):
+    def __init__(self, file_location: str, json_relative_path: str, app_image: str = None, wx_app = False):
         self.file_location = file_location
         self.current_json_file_path = os.path.join(os.getcwd(), json_relative_path)
         self.app_image = app_image
+        self.wx_app = wx_app
 
     def LocalJson(self):
         if os.path.isfile(self.current_json_file_path):
@@ -164,6 +189,8 @@ class SimpleUpdater(ABC):
             return False
     
     def Update(self):
+        if argv[-1] == "SelfRestarted":
+            return argv[-1]
         update = self.DoWeNeedToUpdate()
         if update != False and update!= True:
             if update[0] < update[1]:
@@ -175,24 +202,25 @@ class SimpleUpdater(ABC):
                     question_title = self.remote_json["question_title"]
                 except:
                     question_title = "Simple Updater"
-                update_Question = AskToUpdate(question_text, question_title)
+                update_Question = AskToUpdate(question_text, question_title, app=self.wx_app)
                 if update_Question.update:
                     update_obj = DoTheUpdate(self)
-                    UpdateProgress(question_title, update_obj.DoUpdate, update_obj.CancelUpdate, self.app_image)
+                    UpdateProgress(question_title, update_obj.DoUpdate, update_obj.CancelUpdate, self.app_image, update_Question.app)
         return update
     
-    def restart_program(self):
+    def restart_program(self, folder_to_Remove):
         """Restarts the current program.
         Note: this function does not return. Any cleanup action (like
         saving data) must be done before calling this function."""
         python = executable
-        os.execl(python, python, * argv)
+        os.execl(python, python, * argv, folder_to_Remove, "SelfRestarted")
 
 
 class SimpleUpdaterLocal(SimpleUpdater):
 
-    def __init__(self, file_location: str, json_relative_path: str, app_image: str = None):
-        super().__init__(file_location, json_relative_path, app_image)
+    def __init__(self, file_location: str, json_relative_path: str, app_image: str = None, wx_app = False):
+        self.json_relative_path = json_relative_path
+        super().__init__(file_location, json_relative_path, app_image, wx_app)
 
     def GetJsonFile(self):
         ''' Gets the json object to check the upstream version, if the file is locally configured (internal netwok) '''
@@ -202,7 +230,7 @@ class SimpleUpdaterLocal(SimpleUpdater):
             with zipfile.ZipFile(self.file_location, 'r') as zip:
                 files = zip.namelist()
                 for file in files:
-                    if file.endswith(".json"):
+                    if file.endswith(os.path.split(self.json_relative_path)[1]):
                         Version_Ctrl = file
                 if Version_Ctrl:
                     read_json = zip.read(Version_Ctrl)
@@ -218,9 +246,9 @@ class SimpleUpdaterLocal(SimpleUpdater):
 
 class SimpleUpdaterUrl(SimpleUpdater):
     
-    def __init__(self, file_location: str, json_relative_path: str, json_file_location: str, app_image: str = None):
+    def __init__(self, file_location: str, json_relative_path: str, json_file_location: str, app_image: str = None, wx_app = False):
         self.json_file_location = json_file_location
-        super().__init__(file_location, json_relative_path, app_image)
+        super().__init__(file_location, json_relative_path, app_image, wx_app)
         
     
     def GetJsonFile(self):
