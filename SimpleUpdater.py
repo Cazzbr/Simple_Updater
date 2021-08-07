@@ -54,8 +54,8 @@ class DoTheUpdate():
     def Stage2_bkpFiles(self, app_folder, bkp_folder):
         if os.path.isdir(bkp_folder):
             shutil.rmtree(bkp_folder)               
-        os.mkdir(bkp_folder)
         file_names = os.listdir(app_folder)
+        os.mkdir(bkp_folder)
         for f in file_names:
             shutil.move(os.path.join(app_folder, f), os.path.join(bkp_folder,f))
     
@@ -96,9 +96,6 @@ class DoTheUpdate():
 
     def revert_stage3(self, app_folder, bkp_folder):
         self.call_backs.DoCallBackForward("There was an error starting the APP! Reverting the changes, please wait...", 52)
-        for root, dirs, files in os.walk(app_folder):
-            for file in files:
-                os.remove(os.path.join(root, file))
         file_names = os.listdir(bkp_folder)
         for f in file_names:
             shutil.move(os.path.join(bkp_folder, f), os.path.join(app_folder,f))
@@ -130,7 +127,7 @@ class DoTheUpdate():
             self.Stage1_download(temp_app_folder)
             if not self.cancel:
                 app_folder = os.getcwd()
-                bkp_folder = os.path.join(temp_app_folder, "_BKP")
+                bkp_folder = os.path.join(app_folder, "_BKP")
                 self.Stage2_bkpFiles(app_folder, bkp_folder)
                 if not self.cancel:
                     self.Stage3_moveFiles(temp_app_folder, app_folder)
@@ -253,10 +250,12 @@ class SimpleUpdaterUrl(SimpleUpdater):
     
     def GetJsonFile(self):
         ''' Gets the json object to check the upstream version, if the file is locally configured (internal netwok) '''
-        
-        file = request.urlopen(self.json_file_location).read()
-        Version_Ctrl = json.loads(file)
-        return Version_Ctrl
+        try:
+            file = request.urlopen(self.json_file_location).read()
+            Version_Ctrl = json.loads(file)
+            return Version_Ctrl
+        except IOError:
+            return "Erro retrieving the .json file to check updates!"
     
     def GetNewFiles(self, dest):
         abs_dest_file_name = os.path.join(dest, os.path.split(self.file_location)[1])      
