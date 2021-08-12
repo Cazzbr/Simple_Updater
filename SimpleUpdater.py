@@ -9,9 +9,9 @@ import zipfile
 from time import time, sleep
 import __main__ as main
 try:
-    from .Libs.UpdateInterface import AskToUpdate, UpdateProgress
+    from .Libs.UpdateInterface import AskToUpdate, UpdateProgress, SearchingForUpdatesWarning
 except Exception:
-    from Libs.UpdateInterface import AskToUpdate, UpdateProgress
+    from Libs.UpdateInterface import AskToUpdate, UpdateProgress, SearchingForUpdatesWarning
 
 class CallBacks():
     def __init__(self, CallBackGauge, CallBackStatus, CallBackCancel) -> None:
@@ -169,7 +169,7 @@ class SimpleUpdater(ABC):
     def GetNewFiles(self):
         ''' Gets the updated program files from the correct source '''
 
-    def DoWeNeedToUpdate(self):
+    def DoWeNeedToUpdate(self, callback = None):
         ''' Compare the upstream json file with the local file '''
 
         local_json_file = self.LocalJson()
@@ -177,18 +177,36 @@ class SimpleUpdater(ABC):
         if self.remote_json and local_json_file:
             try:
                 if local_json_file["Version"] == self.remote_json["Version"]:
-                    return True
+                    if callback:
+                        callback(True)
+                    else:
+                        return True
                 else:
-                    return (local_json_file['Version'], self.remote_json['Version'])
+                    if callback:
+                        callback((local_json_file['Version'], self.remote_json['Version']))
+                    else:
+                        return (local_json_file['Version'], self.remote_json['Version'])
             except:
-                return False
+                if callback:
+                    callback(False)
+                else:
+                    return False
         else:
-            return False
+            if callback:
+                callback(False)
+            else:
+                return False
     
     def Update(self):
         if argv[-1] == "SelfRestarted":
-            return argv[-1]
-        update = self.DoWeNeedToUpdate()
+            try:
+                shutil.rmtree(argv[-2])
+            except Exception:
+                pass
+            finally:
+                return argv[-1]
+        updateobj = SearchingForUpdatesWarning(self.DoWeNeedToUpdate, app=self.wx_app)
+        update = updateobj.Update
         if update != False and update!= True:
             if update[0] < update[1]:
                 try:

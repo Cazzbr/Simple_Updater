@@ -1,7 +1,34 @@
 from os import path
-from wx import MessageDialog, App, Frame, Panel, Gauge, Button, StaticText, Image, BITMAP_TYPE_ANY, StaticBitmap, BoxSizer, ID_ANY, VERTICAL, HORIZONTAL, EXPAND, ALL, CENTER, LEFT, RIGHT, YES_NO, ICON_QUESTION, ID_YES, EVT_BUTTON, CallAfter
-from wx.core import BOTTOM
+from wx import MessageDialog, App, Frame, Panel, Gauge, Button, StaticText, Image, BITMAP_TYPE_ANY, StaticBitmap, BoxSizer, ID_ANY, VERTICAL, HORIZONTAL, EXPAND, ALL, CENTER, LEFT, RIGHT, BOTTOM, YES_NO, ICON_QUESTION, ID_YES, EVT_BUTTON, CallAfter, ALIGN_CENTER_HORIZONTAL, ALIGN_CENTER_VERTICAL
 from .KThread import KThread
+
+class SearchingForUpdatesWarning(Frame):
+    def __init__(self, func, app = False, title = "Simple Updater", msg = "Searching for new Updates, please wait..."):
+        self.Update = False
+        self.search_updates = KThread(target=func, args=(self.close_CallBack,))
+        self.search_updates.start()
+        self.app = app
+        if not self.app:
+            self.app = App()
+        Frame.__init__(self, None, title=title)
+        panel = Panel(self)
+        panel_sizer = BoxSizer(VERTICAL)
+        text = StaticText(panel, ID_ANY, msg)
+        panel_sizer.AddStretchSpacer()
+        panel_sizer.Add(text, 1, ALL | ALIGN_CENTER_HORIZONTAL, 20)
+        panel_sizer.AddStretchSpacer()
+        panel.SetSizer(panel_sizer)
+        self.Centre()
+        self.Show()
+        self.app.MainLoop()
+
+    def close_CallBack(self, update):
+        CallAfter(lambda update = update:self.close_window(update))
+    
+    def close_window(self, update):
+        self.search_updates.join()
+        self.Close()
+        self.Update = update
 
 class AskToUpdate():
     def __init__(self, message: str, title: str = "Simple Updater", app: App = False):
@@ -80,4 +107,4 @@ class UpdateProgress(Frame):
         self.Close()
 
 if __name__ == "__main__":
-    UpdateProgress("Message", "_")
+    SearchingForUpdatesWarning()
